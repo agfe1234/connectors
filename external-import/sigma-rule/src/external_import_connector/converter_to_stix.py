@@ -171,6 +171,18 @@ class ConverterToStix:
                 created_by_ref=self.author["id"],
                 object_marking_refs=[self.tlp_marking["id"]],
             )
+        elif "detection" in value:
+            return stix2.Indicator(
+                id=f"indicator--{uuid.uuid4()}",
+                name="Dummy Sigma Test Rule22",
+                description=value,
+                pattern_type="sigma",
+                pattern=value,
+                valid_from = datetime.utcnow().replace(tzinfo=timezone.utc),
+                created_by_ref=self.author["id"],
+                object_marking_refs=[self.tlp_marking["id"]],
+            )
+           
 
         else:
             self.helper.connector_logger.error(

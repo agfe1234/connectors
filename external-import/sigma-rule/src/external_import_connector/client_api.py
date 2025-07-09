@@ -53,7 +53,18 @@ class ConnectorClient:
             # ===========================
             # === Add your code above ===
             # ===========================
-            return [{"value": "sample_rule where banana.name = 'test.exe' and coffee.command_line contains 'Run-Magic123'"}]
+
+            sample_path = "/home/watchtek/openCTI/connectors/connectors/external-import/sigma-rule/src/sample_sigma.yml"
+
+            with open(sample_path, "r", encoding="utf-8") as fp:
+                data = fp.read()
+
+            # JSON 객체 그대로 반환
+            return [{"value": data}]
+
+#            return [{"value": "sample_rule where banana.name = 'test.exe' and coffee.command_line contains 'Run-Magic123'"}]
+
+
 
 #            raise NotImplementedError
 
