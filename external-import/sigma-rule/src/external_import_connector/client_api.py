@@ -39,19 +39,33 @@ class ConnectorClient:
             )
             return None
 
-    def extract_zip(self, zip_path, extract_to):
+    def extract_zip(self, zip_path, extract_to, strip_prefix=None):
+        """
+        zip_path: 압축 파일 경로
+        extract_to: 압축 해제할 디렉토리
+        strip_prefix: (선택) zip 내부 경로에서 이 prefix가 있으면 제거하고 해제
+        """
+        import shutil
         if os.path.exists(extract_to):
-            # 안전하게 지움
-            for root, dirs, files in os.walk(extract_to, topdown=False):
-                for name in files:
-                    os.remove(os.path.join(root, name))
-                for name in dirs:
-                    os.rmdir(os.path.join(root, name))
-        else:
-            os.makedirs(extract_to)
+            shutil.rmtree(extract_to)
+        os.makedirs(extract_to)
+
+        def _strip_prefix(path, prefix):
+            if prefix and path.startswith(prefix):
+                return path[len(prefix):]
+            return path
 
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(extract_to)
+            for file_info in zip_ref.infolist():
+                member_path = file_info.filename
+                # prefix가 지정된 경우 제거
+                target_rel_path = _strip_prefix(member_path, strip_prefix)
+                if not target_rel_path or target_rel_path.endswith('/'):
+                    continue  # 빈 경로나 디렉토리 엔트리는 건너뜀
+                target_path = os.path.join(extract_to, target_rel_path)
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                with zip_ref.open(member_path) as source, open(target_path, 'wb') as target:
+                    target.write(source.read())
 
     def generate_custom_sigma_zip(self, full_path, output_zip_path, rule_types):
         # 출력 디렉토리 생성
@@ -59,26 +73,29 @@ class ConnectorClient:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
+        # rules/all 경로 설정
+        rules_all_path = os.path.abspath(os.path.join("rules", "all"))
+        
         sigma_package_release.RULES_DICT = {
-            key: os.path.abspath(os.path.join("rules", "all")) for key in sigma_package_release.RULES_DICT
+            key: rules_all_path for key in sigma_package_release.RULES_DICT
         }
 
         class Args:
             pass
 
         args = Args()
-        args.outfile = output_zip_path
-        print("output경로")
-        print(output_zip_path)
-        args.statuses = sigma_package_release.STATUS[sigma_package_release.STATUS.index("test") :]
+        args.outfile = os.path.abspath(output_zip_path)  # 절대 경로로 변환
+        args.statuses = sigma_package_release.STATUS[sigma_package_release.STATUS.index("stable") :]
         args.levels = ["high", "critical"]
         args.rule_types = rule_types
-        print("룰 선택 전")
+        
         selected_rules = sigma_package_release.select_rules(args)
         print(f"선택된 룰 개수: {len(selected_rules)}")
-        print("룰 선택 후")
+        
         sigma_package_release.write_zip(args.outfile, selected_rules)
-        print("zip파일 생성 후") 
+        print(f"ZIP 파일 생성 완료: {args.outfile}")
+        
+        return args.outfile  # 생성된 파일 경로 반환 
     def get_entities(self, params=None) -> dict:
         """
         If params is None, retrieve all CVEs in National Vulnerability Database
@@ -100,32 +117,50 @@ class ConnectorClient:
 
             # [2] rules/all/ 에 압축 해제
             rules_all_path = os.path.join("rules", "all")
-            self.extract_zip(local_zip, extract_to=rules_all_path)
+            self.extract_zip(local_zip, extract_to=rules_all_path, strip_prefix=None)
 
             # [3] 필터링된 룰 ZIP 생성 (rules/custom/Sigma-custom.zip)
-            custom_zip_path = os.path.join("rules", "custom", "Sigma-custom.zip")
+            custom_dir = os.path.join("rules", "custom")
+            if not os.path.exists(custom_dir):
+                os.makedirs(custom_dir)
+            
+            custom_zip_path = os.path.abspath(os.path.join(custom_dir, "Sigma-custom.zip"))
+            print(f"[DEBUG] Absolute custom_zip_path: {custom_zip_path}")
+            
             self.generate_custom_sigma_zip(
                 full_path=rules_all_path,
                 output_zip_path=custom_zip_path,
                 rule_types=["generic", "emerging-threats", "threat-hunting"],
             )
 
-            # [4] rules/custom/ 에 압축 해제
-            self.extract_zip(custom_zip_path, extract_to=os.path.join("rules", "custom"))
-            print("zip파일 압축 푼 후 ") 
+            # ZIP 파일 존재 확인
+            if not os.path.exists(custom_zip_path):
+                raise FileNotFoundError(f"Custom ZIP file was not created: {custom_zip_path}")
+
+            # [4] rules/custom/extracted/ 에 압축 해제 (ZIP 파일과 분리)
+            extract_to_path = os.path.abspath(os.path.join("rules", "custom", "extracted"))
+            print(f"Custom ZIP 파일 압축 해제 중: {custom_zip_path} -> {extract_to_path}")
+            self.extract_zip(custom_zip_path, extract_to=extract_to_path, strip_prefix="all/")
+            print("Custom ZIP 파일 압축 해제 완료") 
             # return response.json()
             # ===========================
             # === Add your code above ===
             # ===========================
 
-            sample_path = "/home/watchtek/openCTI/connectors/connectors/external-import/sigma-rule/src/sample_sigma.yml"
-
-            with open(sample_path, "r", encoding="utf-8") as fp:
-                data = fp.read()
-
             # JSON 객체 그대로 반환
-            return [{"value": data}]
-
+            extracted_dir = os.path.abspath(os.path.join("rules", "custom", "extracted"))
+            yml_values = []
+            for root, _, files in os.walk(extracted_dir):
+                for fname in files:
+                    if fname.endswith('.yml'):
+                        fpath = os.path.join(root, fname)
+                        try:
+                            with open(fpath, "r", encoding="utf-8") as fp:
+                                data = fp.read()
+                                yml_values.append({"value": data})
+                        except Exception as e:
+                            self.helper.connector_logger.error(f"[YML READ ERROR] {fpath}: {e}")
+            return yml_values
 #            return [{"value": "sample_rule where banana.name = 'test.exe' and coffee.command_line contains 'Run-Magic123'"}]
 
 

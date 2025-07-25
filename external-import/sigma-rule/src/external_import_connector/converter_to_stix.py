@@ -1,12 +1,88 @@
 import ipaddress
+import re
 import uuid
 import stix2
 import validators
+import yaml
 from pycti import Identity, MarkingDefinition, StixCoreRelationship
 from datetime import datetime, timezone
 
-
 class ConverterToStix:
+    def _process_tags_and_labels(self, data: dict):
+        references = []
+        logsource = data.get('logsource', {})
+        for log_key in ['product', 'category', 'service', 'definition']:
+            if value := logsource.get(log_key):
+                references.append(dict(
+                    source_name='sigma-rule',
+                    external_id=f'logsource.{log_key}',
+                    description=value
+                ))
+        for key in ['id', 'level', 'status', 'author', 'license']:
+            if value := data.get(key):
+                references.append(dict(source_name='sigma-rule', external_id=key, description=value))
+        for tag in data.get('tags', []):
+            tag = tag.lower()
+            if match := re.match(r'detection\.(.*)', tag):
+                references.append(dict(source_name='sigma-rule', external_id='detection', description=match.group(1)))
+            elif match := re.match(r'(cve\..*)', tag):
+                cve_id = match.group(1).replace(".", '-').upper()
+                references.append(dict(source_name='cve', external_id=cve_id, url=self.config.CVE_PATH.format(cve_id)))
+            elif match := re.match(r'attack\.(t.*)', tag):
+                attack_id = match.group(1).upper()
+                references.append(dict(source_name="mitre-attack", external_id=attack_id, url=self.config.MITRE_TECHNIQUE_PATH.format(attack_id)))
+            elif match := re.match(r'attack\.(s.*)', tag):
+                attack_id = match.group(1).upper()
+                references.append(dict(source_name="mitre-attack", external_id=attack_id, url=self.config.MITRE_SOFTWARE_PATH.format(attack_id)))
+            elif match := re.match(r'attack\.(g.*)', tag):
+                attack_id = match.group(1).upper()
+                references.append(dict(source_name="mitre-attack", external_id=attack_id, url=self.config.MITRE_GROUP_PATH.format(attack_id)))
+            elif match := re.match(r'attack\.(.*)', tag):
+                attack_id = match.group(1).replace('_', '-')
+                references.append(dict(source_name='mitre-attack', external_id=attack_id, description='tactic'))
+        return references
+
+    def _generate_all_references(self, data: dict):
+        return [
+            {"source_name": "sigma-rule", "external_id": "reference", "description": reference}
+            for reference in data.get("references", [])
+        ]
+
+    def create_sigma_indicator(self, rule: str):
+        import re
+        import yaml
+        from datetime import datetime, date
+        def as_date(d):
+            if isinstance(d, datetime) or isinstance(d, date):
+                return d
+            # Try both common date formats
+            try:
+                return datetime.strptime(d, "%Y-%m-%d")
+            except Exception:
+                return datetime.strptime(d, "%Y/%m/%d")
+
+        data = yaml.safe_load(rule)
+        if not data:
+            return None
+        stix_id = 'indicator--' + str(uuid.uuid5(self.config.namespace, f"{data.get('id')}+sigma"))
+        try:
+            indicator = stix2.Indicator(
+                id=stix_id,
+                created=as_date(data.get('date')),
+                modified=as_date(data.get('modified') if data.get('modified') else data.get('date')),
+                name=data.get("title"),
+                description=f"{data.get('description')}",
+                pattern=rule,
+                pattern_type="sigma",
+                valid_from=as_date(data.get('date')),
+                revoked=data.get('status') == 'deprecated',
+                created_by_ref=self.author["id"],
+                object_marking_refs=[self.tlp_marking["id"]],
+                external_references=self._process_tags_and_labels(data) + self._generate_all_references(data),
+            )
+            return indicator
+        except Exception:
+            return None
     """
     Provides methods for converting various types of input data into STIX 2.1 objects.
 
@@ -23,19 +99,19 @@ class ConverterToStix:
     @staticmethod
     def create_author() -> dict:
         """
-        Create Author
+        Create Author for SigmaHQ
         :return: Author in Stix2 object
         """
         author = stix2.Identity(
-            id=Identity.generate_id(name="Source Name", identity_class="organization"),
-            name="Source Name",
+            id=Identity.generate_id(name="SigmaHQ", identity_class="organization"),
+            name="SigmaHQ",
             identity_class="organization",
-            description="DESCRIPTION",
+            description="SigmaHQ is the official open community project for generic signature format for SIEM systems. See https://github.com/SigmaHQ/sigma",
             external_references=[
                 stix2.ExternalReference(
-                    source_name="External Source",
-                    url="CHANGEME",
-                    description="DESCRIPTION",
+                    source_name="SigmaHQ",
+                    url="https://github.com/SigmaHQ/sigma",
+                    description="SigmaHQ: Generic Signature Format for SIEM Systems."
                 )
             ],
         )
@@ -126,66 +202,18 @@ class ConverterToStix:
         else:
             return False
 
-    def create_obs(self, value: str) -> dict:
+    def create_obs(self, value: str):
         """
-        Create observable according to value given
-        :param value: Value in string
-        :return: Stix object for IPV4, IPV6 or Domain
+        Create observable using built-in Sigma logic.
+        :param value: Sigma rule YAML string
+        :return: Indicator object or None
         """
-        if self._is_ipv6(value) is True:
-            stix_ipv6_address = stix2.IPv6Address(
-                value=value,
-                custom_properties={
-                    "x_opencti_created_by_ref": self.author["id"],
-                },
-            )
-            return stix_ipv6_address
-        elif self._is_ipv4(value) is True:
-            stix_ipv4_address = stix2.IPv4Address(
-                value=value,
-                custom_properties={
-                    "x_opencti_created_by_ref": self.author["id"],
-                },
-            )
-            return stix_ipv4_address
-        elif self._is_domain(value) is True:
-            stix_domain_name = stix2.DomainName(
-                value=value,
-                custom_properties={
-                    "x_opencti_created_by_ref": self.author["id"],
-                },
-            )
-            return stix_domain_name
-        elif "banana" in value or "unicorn" in value or "test_rule" in value:
-            self.helper.connector_logger.info(
-                "[TEST] Generating dummy STIX Indicator for test string",
-                {"value": value},
-            )
-            return stix2.Indicator(
-                id=f"indicator--{uuid.uuid4()}",
-                name="Dummy Sigma Test Rule",
-                description=value,
-                pattern_type="stix",
-                pattern="[process:command_line = 'dummy']",
-                valid_from = datetime.utcnow().replace(tzinfo=timezone.utc),
-                created_by_ref=self.author["id"],
-                object_marking_refs=[self.tlp_marking["id"]],
-            )
-        elif "detection" in value:
-            return stix2.Indicator(
-                id=f"indicator--{uuid.uuid4()}",
-                name="Dummy Sigma Test Rule22",
-                description=value,
-                pattern_type="sigma",
-                pattern=value,
-                valid_from = datetime.utcnow().replace(tzinfo=timezone.utc),
-                created_by_ref=self.author["id"],
-                object_marking_refs=[self.tlp_marking["id"]],
-            )
-           
-
+        indicator = self.create_sigma_indicator(value)
+        if indicator:
+            return indicator
         else:
             self.helper.connector_logger.error(
-                "This observable value is not a valid IPv4 or IPv6 address nor DomainName: ",
+                "This observable value is not a valid Sigma YAML:",
                 {"value": value},
             )
+            return None

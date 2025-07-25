@@ -15,6 +15,8 @@ class ConfigConnector:
         self.load = self._load_config()
         self._initialize_configurations()
 
+
+
     @staticmethod
     def _load_config() -> dict:
         """
@@ -61,3 +63,48 @@ class ConfigConnector:
             self.load,
             default="clear",
         )
+
+        # MITRE/CVE path constants and namespace
+        from uuid import UUID
+        self.MITRE_TACTIC_PATH = get_config_variable(
+            "CONNECTOR_SIGMA_RULE_MITRE_TACTIC_PATH",
+            ["connector_sigma_rule", "mitre_tactic_path"],
+            self.load,
+            default="https://attack.mitre.org/tactics/{}"
+        )
+        
+        self.MITRE_TECHNIQUE_PATH = get_config_variable(
+            "CONNECTOR_SIGMA_RULE_MITRE_TECHNIQUE_PATH",
+            ["connector_sigma_rule", "mitre_technique_path"],
+            self.load,
+            default="https://attack.mitre.org/techniques/{}"
+        )
+        
+        self.MITRE_SOFTWARE_PATH = get_config_variable(
+            "CONNECTOR_SIGMA_RULE_MITRE_SOFTWARE_PATH",
+            ["connector_sigma_rule", "mitre_software_path"],
+            self.load,
+            default="https://attack.mitre.org/software/{}"
+        )
+        
+        self.MITRE_GROUP_PATH = get_config_variable(
+            "CONNECTOR_SIGMA_RULE_MITRE_GROUP_PATH",
+            ["connector_sigma_rule", "mitre_group_path"],
+            self.load,
+            default="https://attack.mitre.org/groups/{}"
+        )
+        
+        self.CVE_PATH = get_config_variable(
+            "CONNECTOR_SIGMA_RULE_CVE_PATH",
+            ["connector_sigma_rule", "cve_path"],
+            self.load,
+            default="https://nvd.nist.gov/vuln/detail/{}"
+        )
+        
+        namespace_str = get_config_variable(
+            "CONNECTOR_SIGMA_RULE_NAMESPACE",
+            ["connector_sigma_rule", "namespace"],
+            self.load,
+            default="860f4c0f-8c26-5889-b39d-ce94368bc416"
+        )
+        self.namespace = UUID(namespace_str)
