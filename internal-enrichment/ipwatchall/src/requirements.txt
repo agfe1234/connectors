@@ -1,0 +1,4 @@
+pycti==6.7.3
+pycountry==24.6.1
+ip2location>=8.10.0
+PyYAML>=6.0.1

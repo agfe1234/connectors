@@ -1,0 +1,22 @@
+version: '3'
+services:
+  connector-ipinfo:
+    image: opencti/connector-ipinfo:6.7.3
+    environment:
+      - OPENCTI_URL=http://192.168.121.48:8080
+      - OPENCTI_TOKEN=cdad124b-3a57-4af6-a935-98f1e7c1eec1
+      - CONNECTOR_ID=3386f5b3-ee85-4e76-b217-936d0a3c633d
+      - CONNECTOR_NAME=IpInfo
+      - CONNECTOR_SCOPE=IPv4-Addr,IPv6-Addr
+      - CONNECTOR_AUTO=true
+      - CONNECTOR_CONFIDENCE_LEVEL=75 # From 0 (Unknown) to 100 (Fully trusted)
+      - CONNECTOR_LOG_LEVEL=error
+      - IPINFO_TOKEN=b2510b2bfe6100
+      - IPINFO_MAX_TLP=TLP:AMBER
+      - IPINFO_USE_ASN_NAME=true      # Set false if you want ASN name to be just the number e.g. AS8075
+    restart: always
+
+networks:
+  opencti-network:
+    external: true
+
