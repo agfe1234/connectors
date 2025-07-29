@@ -4,4 +4,4 @@
 cd /opt/opencti-connector-sigma-rule
 
 # Launch the worker
-python3 main.py
+python main.py

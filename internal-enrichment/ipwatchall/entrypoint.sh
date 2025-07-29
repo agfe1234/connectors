@@ -4,4 +4,4 @@
 cd /opt/opencti-connector-ipinfo
 
 # Launch the worker
-python3 ipinfo.py
+python ipinfo.py
