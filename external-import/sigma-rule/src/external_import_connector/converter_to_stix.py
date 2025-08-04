@@ -10,21 +10,10 @@ from datetime import datetime, timezone
 class ConverterToStix:
     def _process_tags_and_labels(self, data: dict):
         references = []
-        logsource = data.get('logsource', {})
-        for log_key in ['product', 'category', 'service', 'definition']:
-            if value := logsource.get(log_key):
-                references.append(dict(
-                    source_name='sigma-rule',
-                    external_id=f'logsource.{log_key}',
-                    description=value
-                ))
-        for key in ['id', 'level', 'status', 'author', 'license']:
-            if value := data.get(key):
-                references.append(dict(source_name='sigma-rule', external_id=key, description=value))
         for tag in data.get('tags', []):
             tag = tag.lower()
             if match := re.match(r'detection\.(.*)', tag):
-                references.append(dict(source_name='sigma-rule', external_id='detection', description=match.group(1)))
+                references.append(dict(source_name='sigma-rule', external_id=match.group(1), description='detection'))
             elif match := re.match(r'(cve\..*)', tag):
                 cve_id = match.group(1).replace(".", '-').upper()
                 references.append(dict(source_name='cve', external_id=cve_id, url=self.config.CVE_PATH.format(cve_id)))
@@ -44,7 +33,7 @@ class ConverterToStix:
 
     def _generate_all_references(self, data: dict):
         return [
-            {"source_name": "sigma-rule", "external_id": "reference", "description": reference}
+            {"source_name": "sigma-rule", "external_id": "reference", "url": reference}
             for reference in data.get("references", [])
         ]
 

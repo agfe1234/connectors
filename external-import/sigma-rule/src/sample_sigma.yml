@@ -1,25 +1,27 @@
-title: Potential JNDI Injection Exploitation In JVM Based Application
-id: bb0e9cec-d4da-46f5-997f-22efc59f3dca
-status: test
-description: Detects potential JNDI Injection exploitation. Often coupled with Log4Shell exploitation.
+title: Antivirus PrinterNightmare CVE-2021-34527 Exploit Detection
+id: 6fe1719e-ecdf-4caf-bffe-4f501cb0a561
+status: stable
+description: Detects the suspicious file that is created from PoC code against Windows Print Spooler Remote Code Execution Vulnerability CVE-2021-34527 (PrinterNightmare), CVE-2021-1675 .
 references:
-    - https://www.wix.engineering/post/threat-and-vulnerability-hunting-with-application-server-error-logs
-    - https://secariolabs.com/research/analysing-and-reproducing-poc-for-log4j-2-15-0
-author: Moti Harmats
-date: 2023-02-11
+    - https://twitter.com/mvelazco/status/1410291741241102338
+    - https://msrc.microsoft.com/update-guide/vulnerability/CVE-2021-1675
+    - https://msrc.microsoft.com/update-guide/vulnerability/CVE-2021-34527
+author: Sittikorn S, Nuttakorn T, Tim Shelton
+date: 2021-07-01
+modified: 2023-10-23
 tags:
-    - attack.initial-access
-    - attack.t1190
+    - attack.privilege-escalation
+    - attack.t1055
+    - detection.emerging-threats
 logsource:
-    category: application
-    product: jvm
-    definition: 'Requirements: application error logs must be collected (with LOG_LEVEL=ERROR and above)'
+    category: antivirus
 detection:
+    selection:
+        Filename|contains: ':\Windows\System32\spool\drivers\x64\'
     keywords:
-        - 'com.sun.jndi.ldap.'
-        - 'org.apache.logging.log4j.core.net.JndiManager'
-    condition: keywords
+        - 'File submitted to Symantec' # symantec fp, pending analysis, more generic
+    condition: selection and not keywords
 falsepositives:
-    - Application bugs
-level: high
+    - Unlikely, or pending PSP analysis
+level: critical
 

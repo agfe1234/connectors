@@ -26,7 +26,7 @@ class IP2LocationConnector:
         self.helper = OpenCTIConnectorHelper(config, playbook_compatible=True)
 
         # DB 파일 경로 로딩
-        self.db_path = get_config_variable("IP2LOCATION_DB", ["ip2location", "db_path"], config)
+        self.db_path = get_config_variable("IP2LOCATION_DB_PATH", ["ip2location", "db_path"], config)
         self.max_tlp = get_config_variable("IP2LOCATION_MAX_TLP", ["ip2location", "max_tlp"], config)
         self.db = IP2Location.IP2Location(self.db_path)
 

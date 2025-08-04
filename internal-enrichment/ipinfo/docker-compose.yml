@@ -3,7 +3,7 @@ services:
   connector-ipinfo:
     image: opencti/connector-ipinfo:6.7.3
     environment:
-      - OPENCTI_URL=http://192.168.121.48:8080
+      - OPENCTI_URL=http://192.168.123.48:8080
       - OPENCTI_TOKEN=cdad124b-3a57-4af6-a935-98f1e7c1eec1
       - CONNECTOR_ID=3386f5b3-ee85-4e76-b217-936d0a3c633d
       - CONNECTOR_NAME=IpInfo
