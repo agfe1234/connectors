@@ -23,7 +23,7 @@ class ConnectorClient:
         :return: Response in JSON format
         """
         try:
-            response = self.session.get(api_url, params=params)
+            response = self.session.get(api_url, params=params, timeout=5)
 
             self.helper.connector_logger.info(
                 "[API] HTTP Get Request to endpoint", {"url_path": api_url}
